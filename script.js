@@ -40,7 +40,7 @@ window.addEventListener('resize', () => {
 });
 
 // Stock Screener Logic
-let currentMarket = 'dax';
+let currentMarket = 'bluechip';
 let autoRefreshInterval;
 
 // API Keys
@@ -48,20 +48,20 @@ const FINNHUB_API_KEY = 'd5p9nnhr01qs8sp4tc30d5p9nnhr01qs8sp4tc3g';
 
 // Market configurations with stock symbols
 const markets = {
-    dax: {
-        name: 'DAX',
-        currency: 'EUR',
+    bluechip: {
+        name: 'BLUE CHIPS',
+        currency: 'USD',
         symbols: [
-            { symbol: 'SAP', name: 'SAP SE' },
-            { symbol: 'SIE', name: 'Siemens AG' },
-            { symbol: 'ALV', name: 'Allianz SE' },
-            { symbol: 'DTE', name: 'Deutsche Telekom' },
-            { symbol: 'BAS', name: 'BASF SE' },
-            { symbol: 'MRK', name: 'Merck KGaA' },
-            { symbol: 'BMW', name: 'BMW AG' },
-            { symbol: 'VOW3', name: 'Volkswagen AG' },
-            { symbol: 'ADS', name: 'Adidas AG' },
-            { symbol: 'MUV2', name: 'Munich Re' }
+            { symbol: 'JNJ', name: 'Johnson & Johnson' },
+            { symbol: 'JPM', name: 'JPMorgan Chase' },
+            { symbol: 'V', name: 'Visa Inc.' },
+            { symbol: 'PG', name: 'Procter & Gamble' },
+            { symbol: 'UNH', name: 'UnitedHealth' },
+            { symbol: 'HD', name: 'Home Depot' },
+            { symbol: 'MA', name: 'Mastercard' },
+            { symbol: 'DIS', name: 'Walt Disney' },
+            { symbol: 'KO', name: 'Coca-Cola' },
+            { symbol: 'PEP', name: 'PepsiCo' }
         ]
     },
     tech: {
@@ -191,19 +191,16 @@ async function loadStockData(market) {
     const stocks = [];
     
     // Finnhub requires individual requests per symbol
-    // We'll load them in parallel but respect rate limits
     const promises = market.symbols.map(async (stockConfig, index) => {
         // Add small delay to avoid rate limiting (60 req/min)
         await new Promise(resolve => setTimeout(resolve, index * 100));
         
-        const symbol = currentMarket === 'dax' ? `${stockConfig.symbol}.DE` : stockConfig.symbol;
-        
         const response = await fetch(
-            `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`
+            `https://finnhub.io/api/v1/quote?symbol=${stockConfig.symbol}&token=${FINNHUB_API_KEY}`
         );
         
         if (!response.ok) {
-            throw new Error(`Finnhub API failed for ${symbol}`);
+            throw new Error(`Finnhub API failed for ${stockConfig.symbol}`);
         }
         
         const data = await response.json();
@@ -215,7 +212,7 @@ async function loadStockData(market) {
             price: data.c,
             change: data.d,
             changePercent: data.dp,
-            isOpen: data.c !== data.pc && data.t > 0, // Check if price differs from previous close
+            isOpen: data.c !== data.pc && data.t > 0,
             currency: market.currency
         };
     });
