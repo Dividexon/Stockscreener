@@ -1,11 +1,11 @@
-// Matrix Background Animation
+﻿// Matrix Background Animation
 const canvas = document.getElementById('matrix-bg');
 const ctx = canvas.getContext('2d');
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-const matrixChars = '01$€£¥₿%+-×÷=<>[]{}ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const matrixChars = '01$€%+-=<>[]{}ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const fontSize = 14;
 const columns = canvas.width / fontSize;
 const drops = [];
@@ -40,7 +40,7 @@ window.addEventListener('resize', () => {
 });
 
 // Stock Screener Logic
-let currentMarket = 'bluechip';
+let currentMarket = 'indices';
 let autoRefreshInterval;
 
 // API Keys
@@ -48,6 +48,22 @@ const FINNHUB_API_KEY = 'd5p9nnhr01qs8sp4tc30d5p9nnhr01qs8sp4tc3g';
 
 // Market configurations with stock symbols
 const markets = {
+    indices: {
+        name: 'INDICES',
+        currency: 'USD',
+        symbols: [
+            { symbol: 'SPY', name: 'S&P 500 (ETF)' },
+            { symbol: 'QQQ', name: 'NASDAQ 100 (ETF)' },
+            { symbol: 'DIA', name: 'Dow Jones (ETF)' },
+            { symbol: 'IWM', name: 'Russell 2000 (ETF)' },
+            { symbol: 'URTH', name: 'MSCI World (ETF)' },
+            { symbol: 'EFA', name: 'MSCI EAFE (ETF)' },
+            { symbol: 'VGK', name: 'FTSE Europe (ETF)' },
+            { symbol: 'EWG', name: 'DAX Germany (ETF)' },
+            { symbol: 'FXI', name: 'China Large-Cap (ETF)' },
+            { symbol: 'EEM', name: 'Emerging Markets (ETF)' }
+        ]
+    },
     bluechip: {
         name: 'BLUE CHIPS',
         currency: 'USD',
@@ -141,10 +157,10 @@ async function loadStocks() {
             // Use CoinGecko API for crypto (free, no key needed)
             stocks = await loadCryptoData(market);
         } else {
-            // Use Finnhub API for stocks
+            // Use Finnhub API for stocks and indices
             stocks = await loadStockData(market);
         }
-        
+
         displayStocks(stocks, market);
         updateStatus('SYSTEM ONLINE');
         updateLastUpdate();
@@ -166,13 +182,13 @@ async function loadCryptoData(market) {
     const response = await fetch(
         `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
     );
-    
+
     if (!response.ok) {
         throw new Error('CoinGecko API failed');
     }
-    
+
     const data = await response.json();
-    
+
     return data.map(coin => {
         const config = market.symbols.find(s => s.id === coin.id);
         return {
@@ -189,22 +205,22 @@ async function loadCryptoData(market) {
 
 async function loadStockData(market) {
     const stocks = [];
-    
+
     // Finnhub requires individual requests per symbol
     const promises = market.symbols.map(async (stockConfig, index) => {
         // Add small delay to avoid rate limiting (60 req/min)
         await new Promise(resolve => setTimeout(resolve, index * 100));
-        
+
         const response = await fetch(
             `https://finnhub.io/api/v1/quote?symbol=${stockConfig.symbol}&token=${FINNHUB_API_KEY}`
         );
-        
+
         if (!response.ok) {
             throw new Error(`Finnhub API failed for ${stockConfig.symbol}`);
         }
-        
+
         const data = await response.json();
-        
+
         // c = current price, d = change, dp = percent change, o = open
         return {
             symbol: stockConfig.symbol,
@@ -216,7 +232,7 @@ async function loadStockData(market) {
             currency: market.currency
         };
     });
-    
+
     return Promise.all(promises);
 }
 
@@ -258,7 +274,7 @@ function displayStocks(stocks, market) {
                         ${isPositive ? '+' : ''}${change}
                     </div>
                     <div class="change-percent ${isPositive ? 'positive' : 'negative'}">
-                        ${isPositive ? '▲' : '▼'} ${Math.abs(changePercent).toFixed(2)}%
+                        ${isPositive ? '' : ''} ${Math.abs(changePercent).toFixed(2)}%
                     </div>
                 </div>
             </div>
