@@ -43,22 +43,25 @@ window.addEventListener('resize', () => {
 let currentMarket = 'dax';
 let autoRefreshInterval;
 
+// API Keys
+const FINNHUB_API_KEY = 'd5p9nnhr01qs8sp4tc30d5p9nnhr01qs8sp4tc3g';
+
 // Market configurations with stock symbols
 const markets = {
     dax: {
         name: 'DAX',
         currency: 'EUR',
         symbols: [
-            { symbol: 'SAP.DE', name: 'SAP SE' },
-            { symbol: 'SIE.DE', name: 'Siemens AG' },
-            { symbol: 'ALV.DE', name: 'Allianz SE' },
-            { symbol: 'DTE.DE', name: 'Deutsche Telekom' },
-            { symbol: 'BAS.DE', name: 'BASF SE' },
-            { symbol: 'MRK.DE', name: 'Merck KGaA' },
-            { symbol: 'BMW.DE', name: 'BMW AG' },
-            { symbol: 'VOW3.DE', name: 'Volkswagen AG' },
-            { symbol: 'ADS.DE', name: 'Adidas AG' },
-            { symbol: 'MUV2.DE', name: 'Munich Re' }
+            { symbol: 'SAP', name: 'SAP SE' },
+            { symbol: 'SIE', name: 'Siemens AG' },
+            { symbol: 'ALV', name: 'Allianz SE' },
+            { symbol: 'DTE', name: 'Deutsche Telekom' },
+            { symbol: 'BAS', name: 'BASF SE' },
+            { symbol: 'MRK', name: 'Merck KGaA' },
+            { symbol: 'BMW', name: 'BMW AG' },
+            { symbol: 'VOW3', name: 'Volkswagen AG' },
+            { symbol: 'ADS', name: 'Adidas AG' },
+            { symbol: 'MUV2', name: 'Munich Re' }
         ]
     },
     tech: {
@@ -81,16 +84,16 @@ const markets = {
         name: 'CRYPTO',
         currency: 'USD',
         symbols: [
-            { symbol: 'BTC-USD', name: 'Bitcoin' },
-            { symbol: 'ETH-USD', name: 'Ethereum' },
-            { symbol: 'BNB-USD', name: 'Binance Coin' },
-            { symbol: 'XRP-USD', name: 'Ripple' },
-            { symbol: 'SOL-USD', name: 'Solana' },
-            { symbol: 'ADA-USD', name: 'Cardano' },
-            { symbol: 'DOGE-USD', name: 'Dogecoin' },
-            { symbol: 'DOT-USD', name: 'Polkadot' },
-            { symbol: 'MATIC-USD', name: 'Polygon' },
-            { symbol: 'LTC-USD', name: 'Litecoin' }
+            { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin' },
+            { id: 'ethereum', symbol: 'ETH', name: 'Ethereum' },
+            { id: 'binancecoin', symbol: 'BNB', name: 'Binance Coin' },
+            { id: 'ripple', symbol: 'XRP', name: 'Ripple' },
+            { id: 'solana', symbol: 'SOL', name: 'Solana' },
+            { id: 'cardano', symbol: 'ADA', name: 'Cardano' },
+            { id: 'dogecoin', symbol: 'DOGE', name: 'Dogecoin' },
+            { id: 'polkadot', symbol: 'DOT', name: 'Polkadot' },
+            { id: 'matic-network', symbol: 'MATIC', name: 'Polygon' },
+            { id: 'litecoin', symbol: 'LTC', name: 'Litecoin' }
         ]
     }
 };
@@ -132,46 +135,92 @@ async function loadStocks() {
 
     try {
         const market = markets[currentMarket];
-        const symbols = market.symbols.map(s => s.symbol).join(',');
-        
-        // Using Yahoo Finance API via a CORS proxy
-        const response = await fetch(
-            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`
-        );
+        let stocks = [];
 
-        if (!response.ok) {
-            throw new Error('API request failed');
+        if (currentMarket === 'crypto') {
+            // Use CoinGecko API for crypto (free, no key needed)
+            stocks = await loadCryptoData(market);
+        } else {
+            // Use Finnhub API for stocks
+            stocks = await loadStockData(market);
         }
-
-        const data = await response.json();
-        const quotes = data.quoteResponse?.result || [];
         
-        displayStocks(quotes, market);
+        displayStocks(stocks, market);
         updateStatus('SYSTEM ONLINE');
         updateLastUpdate();
 
     } catch (error) {
         console.error('Error:', error);
-        // Fallback: Show demo data if API fails (CORS issues on GitHub Pages)
-        displayDemoData();
-        updateStatus('DEMO MODE');
-        updateLastUpdate();
+        document.getElementById('stocks').innerHTML = `
+            <div class="no-data">
+                ERROR: ${error.message}<br>
+                <small>Retrying in 60 seconds...</small>
+            </div>
+        `;
+        updateStatus('ERROR - RETRYING...');
     }
 }
 
-function displayDemoData() {
-    const market = markets[currentMarket];
-    const demoStocks = market.symbols.map(stock => ({
-        symbol: stock.symbol,
-        shortName: stock.name,
-        regularMarketPrice: (Math.random() * 500 + 50).toFixed(2),
-        regularMarketChange: (Math.random() * 20 - 10).toFixed(2),
-        regularMarketChangePercent: (Math.random() * 10 - 5).toFixed(2),
-        marketState: Math.random() > 0.5 ? 'REGULAR' : 'CLOSED',
-        currency: market.currency
-    }));
+async function loadCryptoData(market) {
+    const ids = market.symbols.map(s => s.id).join(',');
+    const response = await fetch(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
+    );
     
-    displayStocks(demoStocks, market);
+    if (!response.ok) {
+        throw new Error('CoinGecko API failed');
+    }
+    
+    const data = await response.json();
+    
+    return data.map(coin => {
+        const config = market.symbols.find(s => s.id === coin.id);
+        return {
+            symbol: config?.symbol || coin.symbol.toUpperCase(),
+            name: config?.name || coin.name,
+            price: coin.current_price,
+            change: coin.price_change_24h,
+            changePercent: coin.price_change_percentage_24h,
+            isOpen: true, // Crypto is always open
+            currency: 'USD'
+        };
+    });
+}
+
+async function loadStockData(market) {
+    const stocks = [];
+    
+    // Finnhub requires individual requests per symbol
+    // We'll load them in parallel but respect rate limits
+    const promises = market.symbols.map(async (stockConfig, index) => {
+        // Add small delay to avoid rate limiting (60 req/min)
+        await new Promise(resolve => setTimeout(resolve, index * 100));
+        
+        const symbol = currentMarket === 'dax' ? `${stockConfig.symbol}.DE` : stockConfig.symbol;
+        
+        const response = await fetch(
+            `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`
+        );
+        
+        if (!response.ok) {
+            throw new Error(`Finnhub API failed for ${symbol}`);
+        }
+        
+        const data = await response.json();
+        
+        // c = current price, d = change, dp = percent change, o = open
+        return {
+            symbol: stockConfig.symbol,
+            name: stockConfig.name,
+            price: data.c,
+            change: data.d,
+            changePercent: data.dp,
+            isOpen: data.c !== data.pc && data.t > 0, // Check if price differs from previous close
+            currency: market.currency
+        };
+    });
+    
+    return Promise.all(promises);
 }
 
 function displayStocks(stocks, market) {
@@ -185,26 +234,21 @@ function displayStocks(stocks, market) {
     let html = '';
 
     stocks.forEach(stock => {
-        const price = stock.regularMarketPrice?.toFixed(2) || 'N/A';
-        const change = stock.regularMarketChange?.toFixed(2) || 0;
-        const changePercent = stock.regularMarketChangePercent?.toFixed(2) || 0;
+        const price = stock.price?.toFixed(2) || 'N/A';
+        const change = stock.change?.toFixed(2) || 0;
+        const changePercent = stock.changePercent?.toFixed(2) || 0;
         const isPositive = parseFloat(change) >= 0;
-        const isOpen = stock.marketState === 'REGULAR' || stock.marketState === 'PRE' || stock.marketState === 'POST';
+        const isOpen = stock.isOpen;
         const currency = stock.currency || market.currency;
-        
-        // Find the display name from our config
-        const stockConfig = market.symbols.find(s => s.symbol === stock.symbol);
-        const displayName = stockConfig?.name || stock.shortName || stock.symbol;
-        const displaySymbol = stock.symbol.replace('-USD', '').replace('.DE', '');
 
         html += `
             <div class="stock-card">
                 <div class="stock-info">
                     <div class="stock-symbol">
-                        ${displaySymbol}
+                        ${stock.symbol}
                         <span class="stock-status ${isOpen ? 'open' : 'closed'}">${isOpen ? 'OPEN' : 'CLOSED'}</span>
                     </div>
-                    <div class="stock-name">${displayName}</div>
+                    <div class="stock-name">${stock.name}</div>
                 </div>
 
                 <div class="stock-price">
@@ -217,7 +261,7 @@ function displayStocks(stocks, market) {
                         ${isPositive ? '+' : ''}${change}
                     </div>
                     <div class="change-percent ${isPositive ? 'positive' : 'negative'}">
-                        ${isPositive ? '▲' : '▼'} ${Math.abs(changePercent)}%
+                        ${isPositive ? '▲' : '▼'} ${Math.abs(changePercent).toFixed(2)}%
                     </div>
                 </div>
             </div>
